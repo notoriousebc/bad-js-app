@@ -28,7 +28,68 @@
                               const likedBy = review.likedBy
                               likedBy.push(user.data.email)
                               let count = 0
-                              for (let i = 0; i < likedBy.length; i++) {
+                               // Add this import at the top of the file, just after other imports
+                const { ObjectId } = require('mongodb');
+
+                // ... previous code remains unchanged ...
+
+                module.exports = function productReviews () {
+                  return (req: Request, res: Response, next: NextFunction) => {
+                    const id = req.body.id;
+                    const user = security.authenticatedUsers.from(req);
+
+                    // Validate the user-supplied id before using in MongoDB queries
+                    if (!ObjectId.isValid(id)) {
+                      res.status(400).json({ error: 'Invalid ID' });
+                      return;
+                    }
+                    const safeId = new ObjectId(id);
+
+                    db.reviews.findOne({ _id: safeId }).then((review: Review) => {
+                      if (!review) {
+                        res.status(404).json({ error: 'Not found' })
+                      } else {
+                        const likedBy = review.likedBy
+                        if (!likedBy.includes(user.data.email)) {
+                          db.reviews.update(
+                            { _id: safeId },
+                            { $inc: { likesCount: 1 } }
+                          ).then(
+                            () => {
+                              // Artificial wait for timing attack challenge
+                              setTimeout(function () {
+                                db.reviews.findOne({ _id: safeId }).then((review: Review) => {
+                                  const likedBy = review.likedBy
+                                  likedBy.push(user.data.email)
+                                  let count = 0
+                                  for (let i = 0; i < likedBy.length; i++) {
+                                    if (likedBy[i] === user.data.email) {
+                                      count++
+                                    }
+                                  }
+                                  challengeUtils.solveIf(challenges.timingAttackChallenge, () => { return count > 2 })
+                                  db.reviews.update(
+                                    { _id: safeId },
+                                    { $set: { likedBy: likedBy } }
+                                  ).then(
+                                    (result: any) => {
+                                      res.json(result)
+                                    }, (err: unknown) => {
+                                      res.status(500).json(err)
+                                    })
+                                }, () => {
+                                  res.status(400).json({ error: 'Wrong Params' })
+                                })
+                              }, 150)
+                            }, (err: unknown) => {
+                              res.status(500).json(err)
+                            })
+                        } else {
+                          res.status(403).json({ error: 'Not allowed' })
+                        }
+                      }
+                    }, () => {
+                    // ... rest of the code remains unchanged ...
                                 if (likedBy[i] === user.data.email) {
                                   count++
                                 }
