@@ -1,3 +1,52 @@
+  // At the top of your file, add the following imports
+    import mongoSanitize = require('mongo-sanitize');
+    import { ObjectId } from 'mongodb';
+
+    // ...all other code remains unchanged...
+
+    module.exports = function productReviews () {
+      return (req: Request, res: Response, next: NextFunction) => {
+        // Sanitize the user input and check for ObjectId validity
+        const rawId = mongoSanitize(req.body.id);
+        const id = ObjectId.isValid(rawId) ? new ObjectId(rawId) : null;
+        const user = security.authenticatedUsers.from(req);
+
+        if (!id) {
+          // If the id is not valid, return a 400 Bad Request
+          return res.status(400).json({ error: 'Invalid review id' });
+        }
+
+        db.reviews.findOne({ _id: id }).then((review: Review) => {
+          if (!review) {
+            res.status(404).json({ error: 'Not found' })
+          } else {
+            const likedBy = review.likedBy
+            if (!likedBy.includes(user.data.email)) {
+              db.reviews.update(
+                { _id: id },
+                { $inc: { likesCount: 1 } }
+              ).then(
+                () => {
+                  // Artificial wait for timing attack challenge
+                  setTimeout(function () {
+                    db.reviews.findOne({ _id: id }).then((review: Review) => {
+                      const likedBy = review.likedBy
+                      likedBy.push(user.data.email)
+                      let count = 0
+                      for (let i = 0; i < likedBy.length; i++) {
+                        if (likedBy[i] === user.data.email) {
+                          count++
+                        }
+                      }
+                      challengeUtils.solveIf(challenges.timingAttackChallenge, () => { return count > 2 })
+                      db.reviews.update(
+                        { _id: id },
+                        { $set: { likedBy: likedBy } }
+                      ).then(
+                        (result: any) => {
+                          res.json(result)
+                        }, (err: unknown) => {
+                          res.status(500).json(err)
 /*
  * Copyright (c) 2014-2023 Bjoern Kimminich & the OWASP Juice Shop contributors.
  * SPDX-License-Identifier: MIT
