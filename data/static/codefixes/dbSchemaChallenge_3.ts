@@ -8,7 +8,13 @@ module.exports = function searchProducts () {
       res.status(400).send()
       return
     }
-    models.sequelize.query(`SELECT * FROM Products WHERE ((name LIKE '%${criteria}%' OR description LIKE '%${criteria}%') AND deletedAt IS NULL) ORDER BY name`)
+  // Use parameterized queries to prevent SQL injection
+    models.sequelize.query(
+      "SELECT * FROM Products WHERE ((name LIKE :likeQ OR description LIKE :likeQ) AND deletedAt IS NULL) ORDER BY name",
+      {
+        replacements: { likeQ: `%${criteria}%` }
+      }
+    )
       .then(([products]: any) => {
         const dataString = JSON.stringify(products)
         for (let i = 0; i < products.length; i++) {
